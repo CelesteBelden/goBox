@@ -1,0 +1,954 @@
+{
+	"info": {
+		"_postman_id": "fuse-api-test-collection",
+		"name": "MemFS API Tests",
+		"description": "Comprehensive test collection for the MemFS HTTP API endpoints",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "testDir",
+			"value": "/testdir",
+			"type": "string"
+		},
+		{
+			"key": "testFile",
+			"value": "/testfile.txt",
+			"type": "string"
+		},
+		{
+			"key": "dirHandle",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "fileHandle",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Filesystem Stats",
+			"item": [
+				{
+					"name": "Get Filesystem Stats",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    pm.response.to.be.json;",
+									"});",
+									"",
+									"pm.test(\"Response has error field set to 0\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.eql(0);",
+									"});",
+									"",
+									"pm.test(\"Response contains filesystem stats data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('data');",
+									"    pm.expect(jsonData.data).to.be.an('object');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/statfs?path=/",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "statfs"],
+							"query": [
+								{
+									"key": "path",
+									"value": "/"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Directory Operations",
+			"item": [
+				{
+					"name": "Create Directory",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has error field set to 0\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.eql(0);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"path\": \"{{testDir}}\",\n    \"mode\": 493\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/mkdir",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "mkdir"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Directory Attributes",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has error field set to 0\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.eql(0);",
+									"});",
+									"",
+									"pm.test(\"Directory attributes returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('data');",
+									"    pm.expect(jsonData.data).to.be.an('object');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/getattr?path={{testDir}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "getattr"],
+							"query": [
+								{
+									"key": "path",
+									"value": "{{testDir}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Open Directory",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has error field set to 0\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.eql(0);",
+									"});",
+									"",
+									"pm.test(\"Handle returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.data).to.have.property('handle');",
+									"    pm.collectionVariables.set('dirHandle', jsonData.data.handle);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"path\": \"{{testDir}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/opendir",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "opendir"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Read Directory",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response is valid\", function () {",
+									"    pm.response.to.be.ok;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/readdir?path={{testDir}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "readdir"],
+							"query": [
+								{
+									"key": "path",
+									"value": "{{testDir}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Read Directory Paginated",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has error field set to 0\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.eql(0);",
+									"});",
+									"",
+									"pm.test(\"Response contains pagination info\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.data).to.have.property('entries');",
+									"    pm.expect(jsonData.data).to.have.property('offset');",
+									"    pm.expect(jsonData.data).to.have.property('limit');",
+									"    pm.expect(jsonData.data).to.have.property('total');",
+									"    pm.expect(jsonData.data.entries).to.be.an('array');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/readdir/paginated?path={{testDir}}&limit=10&offset=0",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "readdir", "paginated"],
+							"query": [
+								{
+									"key": "path",
+									"value": "{{testDir}}"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "offset",
+									"value": "0"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Remove Directory",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has error field set to 0\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.eql(0);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/rmdir?path={{testDir}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "rmdir"],
+							"query": [
+								{
+									"key": "path",
+									"value": "{{testDir}}"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "File Operations",
+			"item": [
+				{
+					"name": "Create File",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has error field set to 0\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.eql(0);",
+									"});",
+									"",
+									"pm.test(\"File handle returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.data).to.have.property('handle');",
+									"    pm.collectionVariables.set('fileHandle', jsonData.data.handle);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"path\": \"{{testFile}}\",\n    \"flags\": 2,\n    \"mode\": 420\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/create",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "create"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Write File Binary",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has error field set to 0\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.eql(0);",
+									"});",
+									"",
+									"pm.test(\"Bytes written returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.data).to.have.property('bytesWritten');",
+									"    pm.expect(jsonData.data.bytesWritten).to.be.above(0);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/octet-stream"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "Hello, this is test file content!"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/files/write?path={{testFile}}&offset=0",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "files", "write"],
+							"query": [
+								{
+									"key": "path",
+									"value": "{{testFile}}"
+								},
+								{
+									"key": "offset",
+									"value": "0"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Read File Binary",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response contains binary data\", function () {",
+									"    pm.expect(pm.response.text()).to.include('Hello, this is test file content!');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/files/read?path={{testFile}}&offset=0",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "files", "read"],
+							"query": [
+								{
+									"key": "path",
+									"value": "{{testFile}}"
+								},
+								{
+									"key": "offset",
+									"value": "0"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get File Attributes",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has error field set to 0\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.eql(0);",
+									"});",
+									"",
+									"pm.test(\"File attributes returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('data');",
+									"    pm.expect(jsonData.data).to.be.an('object');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/getattr?path={{testFile}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "getattr"],
+							"query": [
+								{
+									"key": "path",
+									"value": "{{testFile}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Truncate File",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has error field set to 0\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.eql(0);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"path\": \"{{testFile}}\",\n    \"size\": 10\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/truncate",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "truncate"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Rename File",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has error field set to 0\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.eql(0);",
+									"});",
+									"",
+									"pm.collectionVariables.set('testFile', '/testfile_renamed.txt');"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"oldPath\": \"{{testFile}}\",\n    \"newPath\": \"/testfile_renamed.txt\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/rename",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "rename"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Unlink File",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has error field set to 0\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.eql(0);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/unlink?path={{testFile}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "unlink"],
+							"query": [
+								{
+									"key": "path",
+									"value": "{{testFile}}"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Metadata Operations",
+			"item": [
+				{
+					"name": "Chmod",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Create a test file first",
+									"pm.collectionVariables.set('chmodTestFile', '/chmod_test.txt');"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 or 404\", function () {",
+									"    pm.expect([200, 404]).to.include(pm.response.code);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"path\": \"/\",\n    \"mode\": 493\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/chmod",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "chmod"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Chown",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 or 404\", function () {",
+									"    pm.expect([200, 404]).to.include(pm.response.code);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"path\": \"/\",\n    \"uid\": 1000,\n    \"gid\": 1000\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/chown",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "chown"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Utimens",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 or 404\", function () {",
+									"    pm.expect([200, 404]).to.include(pm.response.code);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"path\": \"/\",\n    \"times\": [\n        {\"Sec\": 1640000000, \"Nsec\": 0},\n        {\"Sec\": 1640000000, \"Nsec\": 0}\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/utimens",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "utimens"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Error Cases",
+			"item": [
+				{
+					"name": "Get Non-existent File",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test(\"Response has error field set to -2 (ENOENT)\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.eql(-2);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/getattr?path=/nonexistent.txt",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "getattr"],
+							"query": [
+								{
+									"key": "path",
+									"value": "/nonexistent.txt"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Duplicate Directory",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// First create the directory",
+									"const createReq = {",
+									"    url: pm.collectionVariables.get('baseUrl') + '/api/mkdir',",
+									"    method: 'POST',",
+									"    header: {'Content-Type': 'application/json'},",
+									"    body: {",
+									"        mode: 'raw',",
+									"        raw: JSON.stringify({",
+									"            path: '/duplicate_test',",
+									"            mode: 493",
+									"        })",
+									"    }",
+									"};",
+									"",
+									"pm.sendRequest(createReq, function (err, response) {",
+									"    console.log('Pre-created directory for duplicate test');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 409 (Conflict)\", function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"pm.test(\"Response has error field set to -17 (EEXIST)\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.eql(-17);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"path\": \"/duplicate_test\",\n    \"mode\": 493\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/mkdir",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "mkdir"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Missing Required Parameters",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"Response has error field set to -22 (EINVAL)\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.eql(-22);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/getattr",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "getattr"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Wrong HTTP Method",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 405\", function () {",
+									"    pm.response.to.have.status(405);",
+									"});",
+									"",
+									"pm.test(\"Response has error field set to -1\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.eql(-1);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/getattr?path=/",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "getattr"],
+							"query": [
+								{
+									"key": "path",
+									"value": "/"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

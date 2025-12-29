@@ -102,6 +102,11 @@ func (fs *MemFS) Rmdir(path string) int {
 	fs.lock.Lock()
 	defer fs.lock.Unlock()
 
+	// Cannot remove root
+	if path == "/" {
+		return -fuse.ENOENT
+	}
+
 	n, ok := fs.nodes[path]
 	if !ok {
 		return -fuse.ENOENT
@@ -217,9 +222,12 @@ func (fs *MemFS) Open(path string, flags int) (int, uint64) {
 	fs.lock.Lock()
 	defer fs.lock.Unlock()
 
-	_, ok := fs.nodes[path]
+	n, ok := fs.nodes[path]
 	if !ok {
 		return -fuse.ENOENT, 0
+	}
+	if n.stat.Mode&fuse.S_IFDIR != 0 {
+		return -fuse.EISDIR, 0
 	}
 	return 0, 0
 }
@@ -232,6 +240,9 @@ func (fs *MemFS) Read(path string, buff []byte, ofst int64, fh uint64) int {
 	n, ok := fs.nodes[path]
 	if !ok {
 		return -fuse.ENOENT
+	}
+	if n.stat.Mode&fuse.S_IFDIR != 0 {
+		return -fuse.EISDIR
 	}
 
 	size := int64(len(n.data))
@@ -256,6 +267,9 @@ func (fs *MemFS) Write(path string, buff []byte, ofst int64, fh uint64) int {
 	if !ok {
 		return -fuse.ENOENT
 	}
+	if n.stat.Mode&fuse.S_IFDIR != 0 {
+		return -fuse.EISDIR
+	}
 
 	end := ofst + int64(len(buff))
 	if end > int64(len(n.data)) {
@@ -279,6 +293,9 @@ func (fs *MemFS) Truncate(path string, size int64, fh uint64) int {
 	if !ok {
 		return -fuse.ENOENT
 	}
+	if n.stat.Mode&fuse.S_IFDIR != 0 {
+		return -fuse.EISDIR
+	}
 
 	if size < int64(len(n.data)) {
 		n.data = n.data[:size]
@@ -301,8 +318,12 @@ func (fs *MemFS) Readdir(path string,
 	fs.lock.Lock()
 	defer fs.lock.Unlock()
 
-	if _, ok := fs.nodes[path]; !ok {
+	n, ok := fs.nodes[path]
+	if !ok {
 		return -fuse.ENOENT
+	}
+	if n.stat.Mode&fuse.S_IFDIR == 0 {
+		return -fuse.ENOTDIR
 	}
 
 	fill(".", nil, 0)

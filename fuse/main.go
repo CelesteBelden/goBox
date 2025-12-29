@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,6 +15,10 @@ func main() {
 	fs := NewMemFS()
 	host := fuse.NewFileSystemHost(fs)
 
+	// Create API server
+	api := NewAPIServer(fs)
+	api.RegisterRoutes()
+
 	// Graceful shutdown on Ctrl+C
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -19,11 +26,17 @@ func main() {
 	go func() {
 		<-sigCh
 		host.Unmount()
+		os.Exit(0)
 	}()
 
-	fs.Mkdir("/testdir", 0777)
-	fs.Create("/testdir/testfile.txt", 2, 0777)
+	// Start HTTP API server in a goroutine
+	go func() {
+		fmt.Println("Starting API server on http://localhost:8080")
+		if err := http.ListenAndServe(":8080", nil); err != nil {
+			log.Fatal(err)
+		}
+	}()
 
-	// Mount with command-line args (e.g., X:)
+	// Mount with command-line args (e.g., X:) - this blocks
 	host.Mount("", os.Args[1:])
 }
