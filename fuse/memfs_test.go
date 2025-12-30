@@ -2,6 +2,8 @@ package main
 
 import (
 	"math/rand"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -1012,4 +1014,199 @@ func TestConcurrency(t *testing.T) {
 
 		wg.Wait()
 	})
+}
+
+// TestLinkLocal tests linking a real directory into the filesystem
+func TestLinkLocal(t *testing.T) {
+	fs := newTestFS()
+	tmpDir := t.TempDir()
+
+	// Create some files in the temp directory
+	os.WriteFile(filepath.Join(tmpDir, "file1.txt"), []byte("content1"), 0644)
+	os.WriteFile(filepath.Join(tmpDir, "file2.txt"), []byte("content2"), 0644)
+
+	// Link the directory
+	err := fs.LinkLocal("/media", tmpDir)
+	if err != 0 {
+		t.Fatalf("LinkLocal failed with error %d", err)
+	}
+
+	// Verify the linked directory exists
+	var stat fuse.Stat_t
+	errCode := fs.Getattr("/media", &stat, 0)
+	if errCode != 0 {
+		t.Errorf("Getattr on linked directory failed with error %d", errCode)
+	}
+	if stat.Mode&fuse.S_IFDIR == 0 {
+		t.Error("linked path is not a directory")
+	}
+}
+
+// TestLinkLocalAlreadyExists tests that LinkLocal fails if path already exists
+func TestLinkLocalAlreadyExists(t *testing.T) {
+	fs := newTestFS()
+	tmpDir := t.TempDir()
+
+	// Create a directory first
+	fs.Mkdir("/existing", 0755)
+
+	// Try to link to same path
+	err := fs.LinkLocal("/existing", tmpDir)
+	if err != -fuse.EEXIST {
+		t.Errorf("LinkLocal on existing path returned %d, expected %d", err, -fuse.EEXIST)
+	}
+}
+
+// TestBackendReaddir tests reading directory contents through backend
+func TestBackendReaddir(t *testing.T) {
+	fs := newTestFS()
+	tmpDir := t.TempDir()
+
+	// Create files in temp directory
+	os.WriteFile(filepath.Join(tmpDir, "test1.txt"), []byte("content1"), 0644)
+	os.WriteFile(filepath.Join(tmpDir, "test2.txt"), []byte("content2"), 0644)
+
+	// Link the directory
+	fs.LinkLocal("/external", tmpDir)
+
+	// Read directory
+	entries := make([]string, 0)
+	fs.Readdir("/external", func(name string, stat *fuse.Stat_t, ofst int64) bool {
+		if name != "." && name != ".." {
+			entries = append(entries, name)
+		}
+		return true
+	}, 0, 0)
+
+	if len(entries) != 2 {
+		t.Errorf("Readdir returned %d entries, expected 2", len(entries))
+	}
+
+	// Check for expected files
+	hasTest1 := false
+	hasTest2 := false
+	for _, e := range entries {
+		if e == "test1.txt" {
+			hasTest1 = true
+		}
+		if e == "test2.txt" {
+			hasTest2 = true
+		}
+	}
+	if !hasTest1 || !hasTest2 {
+		t.Error("Readdir missing expected files")
+	}
+}
+
+// TestBackendRead tests reading file contents through backend
+func TestBackendRead(t *testing.T) {
+	fs := newTestFS()
+	tmpDir := t.TempDir()
+
+	// Create a file in temp directory
+	os.WriteFile(filepath.Join(tmpDir, "readtest.txt"), []byte("hello world"), 0644)
+
+	// Link the directory
+	fs.LinkLocal("/files", tmpDir)
+
+	// Read file
+	buff := make([]byte, 5)
+	bytesRead := fs.Read("/files/readtest.txt", buff, 0, 0)
+	if bytesRead != 5 {
+		t.Errorf("Read returned %d bytes, expected 5", bytesRead)
+	}
+	if string(buff) != "hello" {
+		t.Errorf("Read data = %s, expected 'hello'", string(buff))
+	}
+}
+
+// TestBackendWrite tests writing file contents through backend
+func TestBackendWrite(t *testing.T) {
+	fs := newTestFS()
+	tmpDir := t.TempDir()
+
+	// Link the directory
+	fs.LinkLocal("/files", tmpDir)
+
+	// Create and write to a file
+	fs.Create("/files/writefile.txt", 0, 0644)
+	data := []byte("test content")
+	bytesWritten := fs.Write("/files/writefile.txt", data, 0, 0)
+	if bytesWritten != len(data) {
+		t.Errorf("Write returned %d bytes, expected %d", bytesWritten, len(data))
+	}
+
+	// Verify file on disk
+	content, err := os.ReadFile(filepath.Join(tmpDir, "writefile.txt"))
+	if err != nil {
+		t.Errorf("failed to read written file: %v", err)
+	}
+	if string(content) != "test content" {
+		t.Errorf("file content = %s, expected 'test content'", string(content))
+	}
+}
+
+// TestBackendCreate tests creating files through backend
+func TestBackendCreate(t *testing.T) {
+	fs := newTestFS()
+	tmpDir := t.TempDir()
+
+	// Link the directory
+	fs.LinkLocal("/files", tmpDir)
+
+	// Create a file through backend
+	errCode, _ := fs.Create("/files/newfile.txt", 0, 0644)
+	if errCode != 0 {
+		t.Errorf("Create through backend failed with error %d", errCode)
+	}
+
+	// Verify file exists on disk
+	_, err := os.Stat(filepath.Join(tmpDir, "newfile.txt"))
+	if err != nil {
+		t.Errorf("file not created on disk: %v", err)
+	}
+}
+
+// TestBackendMkdir tests creating directories through backend
+func TestBackendMkdir(t *testing.T) {
+	fs := newTestFS()
+	tmpDir := t.TempDir()
+
+	// Link the directory
+	fs.LinkLocal("/files", tmpDir)
+
+	// Create a subdirectory through backend
+	errCode := fs.Mkdir("/files/subdir", 0755)
+	if errCode != 0 {
+		t.Errorf("Mkdir through backend failed with error %d", errCode)
+	}
+
+	// Verify directory exists on disk
+	_, err := os.Stat(filepath.Join(tmpDir, "subdir"))
+	if err != nil {
+		t.Errorf("directory not created on disk: %v", err)
+	}
+}
+
+// TestResolveBackend tests finding backend for nested paths
+func TestResolveBackend(t *testing.T) {
+	fs := newTestFS()
+	tmpDir := t.TempDir()
+
+	// Link a directory
+	fs.LinkLocal("/external", tmpDir)
+
+	// resolveBackend should find the backend for paths under /external
+	fs.lock.Lock()
+	backend, relPath := fs.resolveBackend("/external/subpath/file.txt")
+	fs.lock.Unlock()
+
+	if backend == nil {
+		t.Error("resolveBackend returned nil for path under linked directory")
+	}
+
+	// resolveBackend returns path relative to backend node
+	if relPath != "/subpath/file.txt" {
+		t.Errorf("resolveBackend returned relPath %s, expected /subpath/file.txt", relPath)
+	}
 }

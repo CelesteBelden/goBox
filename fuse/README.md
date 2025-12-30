@@ -24,6 +24,82 @@ fuse.exe X:
 Ctrl+C
 ```
 
+The HTTP REST API server runs on **localhost:8080** alongside the FUSE mount, allowing you to manage the filesystem programmatically.
+
+---
+
+## REST API Endpoints
+
+The FUSE filesystem exposes a full REST API for filesystem operations:
+
+### Backend Linking
+
+| Endpoint | Method | Description | Body |
+|----------|--------|-------------|------|
+| `/api/link/local` | POST | Link a real filesystem directory into the FUSE mount | `{"path": "/mount/point", "target": "/real/path"}` |
+
+### Metadata Operations
+
+| Endpoint | Method | Description | Query |
+|----------|--------|-------------|-------|
+| `/api/getattr` | GET | Get file/directory attributes | `path` |
+| `/api/chmod` | POST | Change file permissions | Body: `{"path", "mode"}` |
+| `/api/chown` | POST | Change file owner | Body: `{"path", "uid", "gid"}` |
+| `/api/statfs` | GET | Get filesystem stats | `path` |
+
+### Directory Operations
+
+| Endpoint | Method | Description | Body/Query |
+|----------|--------|-------------|-----------|
+| `/api/mkdir` | POST | Create directory | `{"path", "mode"}` |
+| `/api/rmdir` | DELETE | Remove directory | `path` query param |
+| `/api/opendir` | POST | Open directory | `{"path"}` |
+| `/api/readdir` | GET | List directory contents | `path` query param |
+| `/api/readdir/paginated` | GET | List with pagination | `path`, `limit`, `offset` query params |
+
+### File Operations
+
+| Endpoint | Method | Description | Body/Query |
+|----------|--------|-------------|-----------|
+| `/api/create` | POST | Create file | `{"path", "mode"}` |
+| `/api/unlink` | DELETE | Delete file | `path` query param |
+| `/api/truncate` | POST | Resize file | `{"path", "size"}` |
+| `/api/rename` | POST | Move/rename file | `{"oldpath", "newpath"}` |
+
+### Binary File I/O
+
+| Endpoint | Method | Description | Query |
+|----------|--------|-------------|-------|
+| `/api/files/read` | GET | Read binary data | `path`, `offset` |
+| `/api/files/write` | POST | Write binary data | `path`, `offset`; raw body is file content |
+
+---
+
+## Backend Linking
+
+Link real filesystem directories into your FUSE mount to provide access to external files:
+
+```bash
+# Link a directory
+curl -X POST http://localhost:8080/api/link/local \
+  -H "Content-Type: application/json" \
+  -d '{"path": "/media", "target": "C:/Users/Downloads"}'
+
+# Create a file in the linked directory
+curl -X POST http://localhost:8080/api/create \
+  -H "Content-Type: application/json" \
+  -d '{"path": "/media/newfile.txt", "mode": 420}'
+
+# Write data to the file
+curl -X POST http://localhost:8080/api/files/write?path=/media/newfile.txt&offset=0 \
+  --data "Hello from linked backend!"
+
+# List linked directory
+curl http://localhost:8080/api/readdir?path=/media
+```
+
+All operations on linked paths are delegated to the real filesystem. Nested backends are resolved by walking up the path tree to find the nearest parent with a backend.
+
 ---
 
 ## MemFS Function Reference

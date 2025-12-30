@@ -1,4 +1,4 @@
-module example/hello
+module example/pIFPS
 
 go 1.24.6
 

@@ -8,10 +8,12 @@ import (
 	"github.com/winfsp/cgofuse/fuse"
 )
 
-// node represents a file or directory in memory.
+// node represents a file or directory in memory or backed by a filesystem.
 type node struct {
-	stat fuse.Stat_t
-	data []byte
+	stat        fuse.Stat_t
+	data        []byte
+	backend     Backend // nil if in-memory
+	backendPath string  // mount-relative path under backend
 }
 
 // MemFS is an in-memory filesystem.
@@ -52,6 +54,76 @@ func split(path string) (string, string) {
 	return path[:i], path[i+1:]
 }
 
+// resolveBackend finds the nearest ancestor node with a backend and returns the backend and relative path.
+// Returns (nil, path) if no backend is found in ancestors.
+func (fs *MemFS) resolveBackend(path string) (Backend, string) {
+	current := path
+	for {
+		if n, ok := fs.nodes[current]; ok && n.backend != nil {
+			// Found a backend node; compute relative path
+			relPath := strings.TrimPrefix(path, current)
+			if relPath == "" {
+				relPath = "/"
+			}
+			return n.backend, relPath
+		}
+
+		if current == "/" {
+			break
+		}
+		// Move to parent
+		current, _ = split(current)
+		if current == "" {
+			current = "/"
+		}
+	}
+	return nil, path
+}
+
+// LinkLocal mounts a real folder/file at a mount path.
+func (fs *MemFS) LinkLocal(mountPath string, targetRoot string) int {
+	fs.lock.Lock()
+	defer fs.lock.Unlock()
+
+	// Check if path already exists
+	if _, ok := fs.nodes[mountPath]; ok {
+		return -fuse.EEXIST
+	}
+
+	// Check parent exists and is a directory
+	parent, _ := split(mountPath)
+	if parent == "" {
+		parent = "/"
+	}
+	pn, ok := fs.nodes[parent]
+	if !ok {
+		return -fuse.ENOENT
+	}
+	if pn.stat.Mode&fuse.S_IFDIR == 0 {
+		return -fuse.ENOTDIR
+	}
+
+	// Create backend node
+	lb := NewLocalBackend(targetRoot)
+	now := fuse.Now()
+	fs.nodes[mountPath] = &node{
+		stat: fuse.Stat_t{
+			Mode:  fuse.S_IFDIR | 0755,
+			Nlink: 2,
+			Atim:  now,
+			Mtim:  now,
+			Ctim:  now,
+		},
+		backend:     lb,
+		backendPath: "/",
+	}
+
+	// Increment parent link count
+	pn.stat.Nlink++
+
+	return 0
+}
+
 // Getattr gets file attributes.
 func (fs *MemFS) Getattr(path string, stat *fuse.Stat_t, fh uint64) int {
 	fs.lock.Lock()
@@ -59,8 +131,29 @@ func (fs *MemFS) Getattr(path string, stat *fuse.Stat_t, fh uint64) int {
 
 	n, ok := fs.nodes[path]
 	if !ok {
+		// Try to resolve via backend
+		backend, relPath := fs.resolveBackend(path)
+		if backend != nil {
+			st, err := backend.Stat(relPath)
+			if err == 0 {
+				*stat = *st
+				return 0
+			}
+			return err
+		}
 		return -fuse.ENOENT
 	}
+
+	// If this node has a backend, stat through the backend
+	if n.backend != nil {
+		st, err := n.backend.Stat(n.backendPath)
+		if err == 0 {
+			*stat = *st
+			return 0
+		}
+		return err
+	}
+
 	*stat = n.stat
 	return 0
 }
@@ -74,13 +167,31 @@ func (fs *MemFS) Mkdir(path string, mode uint32) int {
 		return -fuse.EEXIST
 	}
 
-	parent, _ := split(path)
+	parent, basename := split(path)
+	if parent == "" {
+		parent = "/"
+	}
 	pn, ok := fs.nodes[parent]
 	if !ok {
+		// Try to resolve parent via backend
+		backend, relPath := fs.resolveBackend(parent)
+		if backend != nil {
+			// Create in backend
+			err := backend.Mkdir(relPath, mode)
+			return err
+		}
 		return -fuse.ENOENT
 	}
 	if pn.stat.Mode&fuse.S_IFDIR == 0 {
 		return -fuse.ENOTDIR
+	}
+
+	// Check if parent is backed; if so, create through backend
+	if pn.backend != nil {
+		// The relative path is just the basename since parent is the backend node
+		relPath := "/" + basename
+		err := pn.backend.Mkdir(relPath, mode)
+		return err
 	}
 
 	now := fuse.Now()
@@ -109,10 +220,34 @@ func (fs *MemFS) Rmdir(path string) int {
 
 	n, ok := fs.nodes[path]
 	if !ok {
+		// Try to resolve via backend
+		backend, relPath := fs.resolveBackend(path)
+		if backend != nil {
+			err := backend.Rmdir(relPath)
+			return err
+		}
 		return -fuse.ENOENT
 	}
 	if n.stat.Mode&fuse.S_IFDIR == 0 {
 		return -fuse.ENOTDIR
+	}
+
+	// Check if directory has a backend; if so, remove through backend
+	if n.backend != nil {
+		err := n.backend.Rmdir(n.backendPath)
+		if err != 0 {
+			return err
+		}
+		// Also remove from in-memory nodes
+		parent, _ := split(path)
+		if parent == "" {
+			parent = "/"
+		}
+		if pn, ok := fs.nodes[parent]; ok {
+			pn.stat.Nlink--
+		}
+		delete(fs.nodes, path)
+		return 0
 	}
 
 	// Check if directory is empty
@@ -127,6 +262,9 @@ func (fs *MemFS) Rmdir(path string) int {
 	}
 
 	parent, _ := split(path)
+	if parent == "" {
+		parent = "/"
+	}
 	if pn, ok := fs.nodes[parent]; ok {
 		pn.stat.Nlink--
 	}
@@ -169,11 +307,28 @@ func (fs *MemFS) Unlink(path string) int {
 
 	n, ok := fs.nodes[path]
 	if !ok {
+		// Try to resolve via backend
+		backend, relPath := fs.resolveBackend(path)
+		if backend != nil {
+			err := backend.Unlink(relPath)
+			return err
+		}
 		return -fuse.ENOENT
 	}
 	if n.stat.Mode&fuse.S_IFDIR != 0 {
 		return -fuse.EISDIR
 	}
+
+	// If node has a backend, delete through it
+	if n.backend != nil {
+		err := n.backend.Unlink(n.backendPath)
+		if err != 0 {
+			return err
+		}
+		delete(fs.nodes, path)
+		return 0
+	}
+
 	delete(fs.nodes, path)
 	return 0
 }
@@ -185,13 +340,38 @@ func (fs *MemFS) Rename(oldpath string, newpath string) int {
 
 	n, ok := fs.nodes[oldpath]
 	if !ok {
+		// Try to resolve via backend
+		backend, relPath := fs.resolveBackend(oldpath)
+		if backend != nil {
+			newBackend, newRelPath := fs.resolveBackend(newpath)
+			// Can only rename within same backend
+			if backend != newBackend {
+				return -fuse.EIO
+			}
+			err := backend.Rename(relPath, newRelPath)
+			return err
+		}
 		return -fuse.ENOENT
 	}
 
 	// Check new parent exists
 	newParent, _ := split(newpath)
+	if newParent == "" {
+		newParent = "/"
+	}
 	if _, ok := fs.nodes[newParent]; !ok {
 		return -fuse.ENOENT
+	}
+
+	// If node has a backend, rename through it
+	if n.backend != nil {
+		err := n.backend.Rename(n.backendPath, newpath)
+		if err != 0 {
+			return err
+		}
+		delete(fs.nodes, oldpath)
+		fs.nodes[newpath] = n
+		return 0
 	}
 
 	// Remove existing target if any
@@ -224,6 +404,19 @@ func (fs *MemFS) Open(path string, flags int) (int, uint64) {
 
 	n, ok := fs.nodes[path]
 	if !ok {
+		// Try to resolve via backend
+		backend, relPath := fs.resolveBackend(path)
+		if backend != nil {
+			// Check if it's a file by calling Stat
+			stat, err := backend.Stat(relPath)
+			if err != 0 {
+				return err, 0
+			}
+			if stat.Mode&fuse.S_IFDIR != 0 {
+				return -fuse.EISDIR, 0
+			}
+			return 0, 0
+		}
 		return -fuse.ENOENT, 0
 	}
 	if n.stat.Mode&fuse.S_IFDIR != 0 {
@@ -239,10 +432,28 @@ func (fs *MemFS) Read(path string, buff []byte, ofst int64, fh uint64) int {
 
 	n, ok := fs.nodes[path]
 	if !ok {
+		// Try to resolve via backend
+		backend, relPath := fs.resolveBackend(path)
+		if backend != nil {
+			bytesRead, err := backend.Read(relPath, buff, ofst)
+			if err != 0 {
+				return err
+			}
+			return bytesRead
+		}
 		return -fuse.ENOENT
 	}
 	if n.stat.Mode&fuse.S_IFDIR != 0 {
 		return -fuse.EISDIR
+	}
+
+	// If node has a backend, read through it
+	if n.backend != nil {
+		bytesRead, err := n.backend.Read(n.backendPath, buff, ofst)
+		if err != 0 {
+			return err
+		}
+		return bytesRead
 	}
 
 	size := int64(len(n.data))
@@ -265,10 +476,28 @@ func (fs *MemFS) Write(path string, buff []byte, ofst int64, fh uint64) int {
 
 	n, ok := fs.nodes[path]
 	if !ok {
+		// Try to resolve via backend
+		backend, relPath := fs.resolveBackend(path)
+		if backend != nil {
+			bytesWritten, err := backend.Write(relPath, buff, ofst)
+			if err != 0 {
+				return err
+			}
+			return bytesWritten
+		}
 		return -fuse.ENOENT
 	}
 	if n.stat.Mode&fuse.S_IFDIR != 0 {
 		return -fuse.EISDIR
+	}
+
+	// If node has a backend, write through it
+	if n.backend != nil {
+		bytesWritten, err := n.backend.Write(n.backendPath, buff, ofst)
+		if err != 0 {
+			return err
+		}
+		return bytesWritten
 	}
 
 	end := ofst + int64(len(buff))
@@ -291,10 +520,28 @@ func (fs *MemFS) Truncate(path string, size int64, fh uint64) int {
 
 	n, ok := fs.nodes[path]
 	if !ok {
+		// Try to resolve via backend
+		backend, relPath := fs.resolveBackend(path)
+		if backend != nil {
+			err := backend.Truncate(relPath, size)
+			if err != 0 {
+				return err
+			}
+			return 0
+		}
 		return -fuse.ENOENT
 	}
 	if n.stat.Mode&fuse.S_IFDIR != 0 {
 		return -fuse.EISDIR
+	}
+
+	// If node has a backend, truncate through it
+	if n.backend != nil {
+		err := n.backend.Truncate(n.backendPath, size)
+		if err != 0 {
+			return err
+		}
+		return 0
 	}
 
 	if size < int64(len(n.data)) {
@@ -318,7 +565,47 @@ func (fs *MemFS) Readdir(path string,
 	fs.lock.Lock()
 	defer fs.lock.Unlock()
 
+	// Check if path exists in nodes first
 	n, ok := fs.nodes[path]
+	if ok && n.backend != nil {
+		// This is a backend node itself; use its backend
+		ents, err := n.backend.Readdir(n.backendPath)
+		if err != 0 {
+			return err
+		}
+		fill(".", nil, 0)
+		fill("..", nil, 0)
+		for _, e := range ents {
+			// Skip Windows system files
+			if e.Name == "desktop.ini" || e.Name == "thumbs.db" {
+				continue
+			}
+			fill(e.Name, &e.Stat, 0)
+		}
+		return 0
+	}
+
+	// Check if this path is under a backend in an ancestor
+	backend, relPath := fs.resolveBackend(path)
+	if backend != nil && !ok {
+		// This path is under a backend (not a node itself); use backend's Readdir
+		ents, err := backend.Readdir(relPath)
+		if err != 0 {
+			return err
+		}
+		fill(".", nil, 0)
+		fill("..", nil, 0)
+		for _, e := range ents {
+			// Skip Windows system files
+			if e.Name == "desktop.ini" || e.Name == "thumbs.db" {
+				continue
+			}
+			fill(e.Name, &e.Stat, 0)
+		}
+		return 0
+	}
+
+	// In-memory path
 	if !ok {
 		return -fuse.ENOENT
 	}
@@ -357,6 +644,19 @@ func (fs *MemFS) Opendir(path string) (int, uint64) {
 
 	n, ok := fs.nodes[path]
 	if !ok {
+		// Try to resolve via backend
+		backend, relPath := fs.resolveBackend(path)
+		if backend != nil {
+			// Check if it's a directory by calling Stat
+			stat, err := backend.Stat(relPath)
+			if err != 0 {
+				return err, 0
+			}
+			if stat.Mode&fuse.S_IFDIR == 0 {
+				return -fuse.ENOTDIR, 0
+			}
+			return 0, 0
+		}
 		return -fuse.ENOENT, 0
 	}
 	if n.stat.Mode&fuse.S_IFDIR == 0 {
@@ -391,9 +691,33 @@ func (fs *MemFS) Create(path string, flags int, mode uint32) (int, uint64) {
 	fs.lock.Lock()
 	defer fs.lock.Unlock()
 
-	parent, _ := split(path)
-	if _, ok := fs.nodes[parent]; !ok {
+	parent, basename := split(path)
+	if parent == "" {
+		parent = "/"
+	}
+	pn, ok := fs.nodes[parent]
+	if !ok {
+		// Try to resolve via backend
+		backend, relPath := fs.resolveBackend(path)
+		if backend != nil {
+			err := backend.Create(relPath, mode)
+			if err != 0 {
+				return err, 0
+			}
+			return 0, 0
+		}
 		return -fuse.ENOENT, 0
+	}
+
+	// Check if parent is backed; if so, create through backend
+	if pn.backend != nil {
+		// The relative path is just the basename since parent is the backend node
+		relPath := "/" + basename
+		err := pn.backend.Create(relPath, mode)
+		if err != 0 {
+			return err, 0
+		}
+		return 0, 0
 	}
 
 	now := fuse.Now()

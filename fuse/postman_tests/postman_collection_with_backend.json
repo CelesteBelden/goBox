@@ -1,0 +1,461 @@
+{
+  "info": {
+    "name": "GoBox FUSE API - Complete",
+    "description": "REST API endpoints for FUSE filesystem operations with backend linking",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Backend Linking",
+      "item": [
+        {
+          "name": "Link Local Directory",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"path\": \"/media\",\n  \"target\": \"C:/Users/celes/Downloads\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/link/local",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "link", "local"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Metadata Operations",
+      "item": [
+        {
+          "name": "Get File Attributes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/getattr?path=/",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "getattr"],
+              "query": [{"key": "path", "value": "/"}]
+            }
+          }
+        },
+        {
+          "name": "Get Attributes of Linked Directory",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/getattr?path=/media",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "getattr"],
+              "query": [{"key": "path", "value": "/media"}]
+            }
+          }
+        },
+        {
+          "name": "Change Permissions",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"path\": \"/testfolder\",\n  \"mode\": 493\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/chmod",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "chmod"]
+            }
+          }
+        },
+        {
+          "name": "Change Owner",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"path\": \"/testfolder\",\n  \"uid\": 1000,\n  \"gid\": 1000\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/chown",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "chown"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Directory Operations",
+      "item": [
+        {
+          "name": "Create Directory",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"path\": \"/testfolder\",\n  \"mode\": 493\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/mkdir",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "mkdir"]
+            }
+          }
+        },
+        {
+          "name": "Create Directory in Linked Backend",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"path\": \"/media/subfolder\",\n  \"mode\": 493\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/mkdir",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "mkdir"]
+            }
+          }
+        },
+        {
+          "name": "Remove Directory",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/rmdir?path=/testfolder",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "rmdir"],
+              "query": [{"key": "path", "value": "/testfolder"}]
+            }
+          }
+        },
+        {
+          "name": "Open Directory",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"path\": \"/\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/opendir",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "opendir"]
+            }
+          }
+        },
+        {
+          "name": "Read Directory (Streaming)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/readdir?path=/",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "readdir"],
+              "query": [{"key": "path", "value": "/"}]
+            }
+          }
+        },
+        {
+          "name": "Read Linked Directory (Streaming)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/readdir?path=/media",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "readdir"],
+              "query": [{"key": "path", "value": "/media"}]
+            }
+          }
+        },
+        {
+          "name": "Read Directory (Paginated)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/readdir/paginated?path=/&limit=10&offset=0",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "readdir", "paginated"],
+              "query": [
+                {"key": "path", "value": "/"},
+                {"key": "limit", "value": "10"},
+                {"key": "offset", "value": "0"}
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "File Operations",
+      "item": [
+        {
+          "name": "Create File",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"path\": \"/testfile.txt\",\n  \"mode\": 420\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/create",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "create"]
+            }
+          }
+        },
+        {
+          "name": "Create File in Linked Backend",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"path\": \"/media/newfile.txt\",\n  \"mode\": 420\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/create",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "create"]
+            }
+          }
+        },
+        {
+          "name": "Delete File",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/unlink?path=/testfile.txt",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "unlink"],
+              "query": [{"key": "path", "value": "/testfile.txt"}]
+            }
+          }
+        },
+        {
+          "name": "Truncate File",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"path\": \"/testfile.txt\",\n  \"size\": 0\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/truncate",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "truncate"]
+            }
+          }
+        },
+        {
+          "name": "Rename/Move File",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"oldpath\": \"/testfile.txt\",\n  \"newpath\": \"/renamed.txt\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/rename",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "rename"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Binary File I/O",
+      "item": [
+        {
+          "name": "Write Binary Data",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "Hello, World! This is test data."
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/files/write?path=/testfile.txt&offset=0",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "files", "write"],
+              "query": [
+                {"key": "path", "value": "/testfile.txt"},
+                {"key": "offset", "value": "0"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Write to Linked Backend File",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "This data is in the linked backend directory!"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/files/write?path=/media/backendfile.txt&offset=0",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "files", "write"],
+              "query": [
+                {"key": "path", "value": "/media/backendfile.txt"},
+                {"key": "offset", "value": "0"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Read Binary Data",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/files/read?path=/testfile.txt&offset=0",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "files", "read"],
+              "query": [
+                {"key": "path", "value": "/testfile.txt"},
+                {"key": "offset", "value": "0"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Read from Linked Backend File",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/files/read?path=/media/backendfile.txt&offset=0",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "files", "read"],
+              "query": [
+                {"key": "path", "value": "/media/backendfile.txt"},
+                {"key": "offset", "value": "0"}
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Filesystem Stats",
+      "item": [
+        {
+          "name": "Get Filesystem Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/statfs?path=/",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "statfs"],
+              "query": [{"key": "path", "value": "/"}]
+            }
+          }
+        },
+        {
+          "name": "Get Stats of Linked Directory",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/statfs?path=/media",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "statfs"],
+              "query": [{"key": "path", "value": "/media"}]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Integration Tests",
+      "item": [
+        {
+          "name": "Test Flow: Link -> Create -> Write -> Read",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"path\": \"/integration\",\n  \"target\": \"C:/temp/integration-test\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/link/local",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "link", "local"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -59,6 +59,9 @@ func (s *APIServer) RegisterRoutes() {
 	http.HandleFunc("/api/readdir", s.handleReaddir)
 	http.HandleFunc("/api/readdir/paginated", s.handleReaddirPaginated)
 
+	// Linking endpoints
+	http.HandleFunc("/api/link/local", s.handleLinkLocal)
+
 	// File endpoints
 	http.HandleFunc("/api/create", s.handleCreate)
 	http.HandleFunc("/api/unlink", s.handleUnlink)
@@ -592,4 +595,26 @@ func (s *APIServer) handleStatfs(w http.ResponseWriter, r *http.Request) {
 	err := s.fs.Statfs(path, stat)
 	statusCode := fuseErrorToHTTP(err)
 	writeJSON(w, statusCode, Response{Error: err, Data: stat})
+}
+
+// ============ Linking Endpoints ============
+
+func (s *APIServer) handleLinkLocal(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, Response{Error: -1})
+		return
+	}
+
+	var req struct {
+		Path   string `json:"path"`   // where it appears in the mount
+		Target string `json:"target"` // real filesystem path
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, Response{Error: -22})
+		return
+	}
+
+	res := s.fs.LinkLocal(req.Path, req.Target)
+	statusCode := fuseErrorToHTTP(res)
+	writeJSON(w, statusCode, Response{Error: res})
 }
